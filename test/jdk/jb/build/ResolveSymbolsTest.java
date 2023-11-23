@@ -148,17 +148,17 @@ public class ResolveSymbolsTest {
 
     private static String runReadElf(Path path) throws IOException, InterruptedException {
         Process process = Runtime.getRuntime().exec("readelf --wide --dyn-syms " + path);
-        process.waitFor();
-        if (process.exitValue() != 0) {
+        String output = new BufferedReader(
+                new InputStreamReader(process.getInputStream())).lines().collect(Collectors.joining("\n"));
+        if (process.waitFor() != 0) {
             return null;
         }
-        return new BufferedReader(new InputStreamReader(process.getInputStream())).lines().collect(Collectors.joining("\n"));
+        return output;
     }
 
     private static void checkReadElf() throws IOException, InterruptedException {
         Process process = Runtime.getRuntime().exec("readelf --version");
-        process.waitFor();
-        if (process.exitValue() != 0) {
+        if (process.waitFor() != 0) {
             throw new RuntimeException("Failed to run readelf");
         }
     }
