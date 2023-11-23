@@ -148,6 +148,9 @@ public class ResolveSymbolsTest {
 
     private static String runReadElf(Path path) throws IOException {
         Process process = Runtime.getRuntime().exec("readelf --wide --dyn-syms " + path);
+        if (process.exitValue() != 0) {
+            return null;
+        }
         return new BufferedReader(new InputStreamReader(process.getInputStream())).lines().collect(Collectors.joining("\n"));
     }
 
@@ -205,17 +208,22 @@ public class ResolveSymbolsTest {
         }
 
         // ========================= Collect symbols in JBR =========================
-        List<Path> binaryCandidates;
+        List<Path> binaries;
         try (Stream<Path> walk = Files.walk(Paths.get(javaHome))) {
-            binaryCandidates = walk
+            binaries = walk
                     .filter(path -> !Files.isDirectory(path))
                     .filter(path -> Files.isExecutable(path) || path.toString().endsWith(".so")).toList();
         }
 
         // A map (Library name) -> (List of imported symbols)
         Map<String, List<String>> importedSymbols = new HashMap<>();
-        for (Path path : binaryCandidates) {
-            List<ElfSymbol> elfSymbols = parseElf(runReadElf(path));
+        for (Path path : binaries) {
+            String elfData = runReadElf(path);
+            if (elfData == null) {
+                // the file doesn't have elf.
+                continue;
+            }
+            List<ElfSymbol> elfSymbols = parseElf(elfData);
             for (ElfSymbol symbol : elfSymbols) {
                 if (!functionSymbolsFilter(path.getFileName().toString(), symbol)) {
                     continue;
