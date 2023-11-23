@@ -146,16 +146,18 @@ public class ResolveSymbolsTest {
         return result;
     }
 
-    private static String runReadElf(Path path) throws IOException {
+    private static String runReadElf(Path path) throws IOException, InterruptedException {
         Process process = Runtime.getRuntime().exec("readelf --wide --dyn-syms " + path);
+        process.waitFor();
         if (process.exitValue() != 0) {
             return null;
         }
         return new BufferedReader(new InputStreamReader(process.getInputStream())).lines().collect(Collectors.joining("\n"));
     }
 
-    private static void checkReadElf() throws IOException {
+    private static void checkReadElf() throws IOException, InterruptedException {
         Process process = Runtime.getRuntime().exec("readelf --version");
+        process.waitFor();
         if (process.exitValue() != 0) {
             throw new RuntimeException("Failed to run readelf");
         }
@@ -184,7 +186,7 @@ public class ResolveSymbolsTest {
         throw new RuntimeException("Unknown os.arch: " + arch);
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InterruptedException {
         checkReadElf();
         String javaHome = System.getProperty("java.home");
 
@@ -220,7 +222,7 @@ public class ResolveSymbolsTest {
         for (Path path : binaries) {
             String elfData = runReadElf(path);
             if (elfData == null) {
-                // the file doesn't have elf.
+                // the candidate doesn't have elf.
                 continue;
             }
             List<ElfSymbol> elfSymbols = parseElf(elfData);
