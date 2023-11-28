@@ -33,8 +33,8 @@ import java.util.stream.Stream;
 
 /**
  * @test
- * @summary ResolveSymbolsTest verifies that the set of impotered symbols is
- *          limited by the predifed symbols list
+ * @summary ResolveSymbolsTest verifies that the set of imported symbols is
+ *          limited by the predefined symbols list
  *
  * @comment What the test actually does?
  *          - It dumps all available in some environment symbols(hereinafter - external symbols).
@@ -99,6 +99,15 @@ public class ResolveSymbolsTest {
      * Name  - symbol name
      */
     private static List<ElfSymbol> parseElf(String readElfData) {
+        readElfData = readElfData
+                // handle default version with @@ like clock_gettime@@GLIBC_2.17
+                // see https://sourceware.org/binutils/docs/ld/VERSION.html
+                .replaceAll("@@", "@")
+                // Values like "<OS specific>: %d", "<unknown>: %d" make it harder to parse the table
+                // see https://github.com/bminor/binutils-gdb/blob/master/binutils/readelf.c
+                .replaceAll("<OS specific>: ", "OS_SPECIFIC_")
+                .replaceAll("<unknown>: ", "UNKNOWN_")
+                .replaceAll("<processor specific>: ", "PROCESSOR_SPECIFIC_");
         String[] lines = readElfData.split("\n");
 
         int i = 0;
@@ -116,7 +125,7 @@ public class ResolveSymbolsTest {
         final int bindCol = tableHeaders.indexOf("Bind");
         final int ndxCol = tableHeaders.indexOf("Ndx");
         final int lastCol = Collections.max(Arrays.asList(nameCol, typeCol, bindCol, ndxCol));
-        if (typeCol == -1 || bindCol == -1 || ndxCol == -1) {
+        if (nameCol == -1 || typeCol == -1 || bindCol == -1 || ndxCol == -1) {
             throw new RuntimeException("readelf: the dynsym must have Type, Bind and Ndx columns, but it has " + tableHeaders);
         }
         ++i;
@@ -136,7 +145,7 @@ public class ResolveSymbolsTest {
                 continue;
             }
             ElfSymbol symbol = new ElfSymbol();
-            symbol.name = row[nameCol].split("@")[0]; // get rid of suffixes like "@GLIBC_2.2.5 (2)"
+            symbol.name = row[nameCol];
             symbol.type = row[typeCol];
             symbol.bind = row[bindCol];
             symbol.sectionNumber = row[ndxCol];
@@ -172,7 +181,7 @@ public class ResolveSymbolsTest {
         }
 
         return !symbol.name.isEmpty() &&
-                (symbol.type.equals("FUNC") || symbol.type.equals("IFUNC")) &&
+                (symbol.type.equals("FUNC") || symbol.type.equals("IFUNC") || symbol.type.equals("OS_SPECIFIC_10")) &&
                 (symbol.bind.equals("WEAK") || symbol.bind.equals("GLOBAL"));
     }
 
