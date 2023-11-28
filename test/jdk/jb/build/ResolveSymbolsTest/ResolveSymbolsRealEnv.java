@@ -31,21 +31,43 @@ import java.util.Objects;
 
 /**
  * @test
- * @summary ResolveSymbolsTest verifies that the set of imported symbols is
- * limited by the predefined symbols list.
- * @requires (os.family = = " linux ")
- * @run main ResolveSymbolsTest
+ * @summary ResolveSymbolsTest verifies that all JBR symbols are successfully resolved in the environment where
+ *          the test is run
+ * @requires (os.family == "linux")
+ * @run main ResolveSymbolsRealEnv
  */
 
 public class ResolveSymbolsRealEnv extends ResolveSymbolsTestBase {
+
+    /**
+     * Run and parse output of ldd.
+     * Example:
+     * $ ldd /usr/bin/ls
+     * 	linux-vdso.so.1 (0x00007fff07744000)
+     * 	libselinux.so.1 => /lib/x86_64-linux-gnu/libselinux.so.1 (0x00007f073f4b2000)
+     * 	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f073f200000)
+     * 	libpcre2-8.so.0 => /lib/x86_64-linux-gnu/libpcre2-8.so.0 (0x00007f073f169000)
+     * 	/lib64/ld-linux-x86-64.so.2 (0x00007f073f51c000)
+     *
+     * 	The function returns a list with "/lib/x86_64-linux-gnu/libselinux.so.1", "/lib/x86_64-linux-gnu/libc.so.6",
+     * 	"/lib/x86_64-linux-gnu/libpcre2-8.so.0" and "/lib64/ld-linux-x86-64.so.2"
+     */
     List<Path> getDependencies(Path path) throws IOException, InterruptedException {
         Process process = Runtime.getRuntime().exec("ldd " + path);
+
         List<Path> result = new BufferedReader(new InputStreamReader(process.getInputStream()))
                 .lines()
-                .map(s -> {
+                .map(line -> {
                     // parse expressions like "libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f931b000000)"
-                    String[] columns = s.split("=>");
-                    return columns.length >= 2 ? columns[1].strip().split("\\s+")[0] : null;
+                    String[] columns = line.split("=>");
+                    if (columns.length >= 2) {
+                        return columns[1].strip().split("\\s+")[0];
+                    }
+                    // something like this "/lib64/ld-linux-x86-64.so.2 (0x00007f073f51c000)" is expected
+                    if (line.contains("ld-linux")) {
+                        return line.trim().split("\\s+")[0];
+                    }
+                    return null;
                 })
                 .filter(Objects::nonNull)
                 .map(Paths::get)
@@ -64,15 +86,16 @@ public class ResolveSymbolsRealEnv extends ResolveSymbolsTestBase {
                     try {
                         return getDependencies(path).stream();
                     } catch (IOException | InterruptedException e) {
-                        throw new RuntimeException(e);
+                        throw new RuntimeException("Failed to get the JBR dependencies from " + path, e);
                     }
                 })
                 .distinct()
                 .map(path -> {
                     try {
+                        System.out.println("Dumping symbols for " + path);
                         return runReadElf(path);
                     } catch (IOException | InterruptedException e) {
-                        throw new RuntimeException(e);
+                        throw new RuntimeException("Failed to read elf for " + path, e);
                     }
                 })
                 .filter(Objects::nonNull)

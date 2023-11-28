@@ -50,9 +50,10 @@ import java.util.stream.Stream;
  *          - Find the library whose symbols are missing. This utilities might help:
  *            $ ldconfig -p | grep libNameImLookingFor
  *            $ ldd nameOfJbrLibrary
+ *            $ yum whatprovides *libXcursor*
  *
  *          - Dump ELF:
- *            $ echo Library: $lib_path" >> $lib_name.txt
+ *            $ echo Library: $lib_path >> $lib_name.txt
  *            $ echo Package: $(rpm -q --whatprovides $lib_path) >> $lib_name.txt
  *            $ echo >> $lib_name.txt
  *            $ readelf --wide --dyn-syms $lib_path >> $lib_name.txt
@@ -60,7 +61,7 @@ import java.util.stream.Stream;
  *            jb/build/externalLibs/x86_64
  *
  * @requires (os.family == "linux")
- * @run main ResolveSymbolsTest
+ * @run main ResolveSymbolsTestMinEnv
  */
 
 public class ResolveSymbolsTestMinEnv extends ResolveSymbolsTestBase {
@@ -76,7 +77,7 @@ public class ResolveSymbolsTestMinEnv extends ResolveSymbolsTestBase {
     }
 
     public List<String> getExternalSymbols() throws IOException {
-        Set<String> result = new HashSet<>();
+        List<String> result = new ArrayList<>();
 
         String libsPath = Objects.requireNonNull(ResolveSymbolsTestMinEnv.class.getResource("externalLibs/" + getArch())).getPath();
         try (Stream<Path> stream = Files.list(Paths.get(libsPath))) {
@@ -93,7 +94,7 @@ public class ResolveSymbolsTestMinEnv extends ResolveSymbolsTestBase {
                 }
             });
         }
-        return result.stream().toList();
+        return result;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {

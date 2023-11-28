@@ -2,17 +2,6 @@
 
 set -e
 
-# Useful tools:
-#
-# How to get the library path in the system:
-# $ ldconfig -p | grep ld-linux-x86-64
-#
-# Find packages containing libXcursor.so file:
-# $ yum whatprovides */libXcursor*
-
-# On top of the the image for build JBR following packages has to be installed(for jcef):
-# yum install at-spi2-atk-devel cairo-devel cups-devel libX11-devel libXcomposite-devel libxkbcommon-devel pango-devel libXcursor-devel
-
 mkdir -p dump_output && cd dump_output && rm -rf *
 libs=(
     /lib64/ld-linux-aarch64.so.1
