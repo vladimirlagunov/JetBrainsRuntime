@@ -8,7 +8,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public abstract class ResolveSymbolsTestBase {
+abstract class ResolveSymbolsTestBase {
     protected static class ElfSymbol {
         String name;
         String type;
@@ -116,9 +116,9 @@ public abstract class ResolveSymbolsTestBase {
     /**
      * Get external to JBR symbols
      */
-    public abstract List<String> getExternalSymbols() throws IOException;
+    protected abstract List<String> getExternalSymbols() throws IOException;
 
-    void doTest() throws IOException, InterruptedException {
+    protected void doTest() throws IOException, InterruptedException {
         checkReadElf();
 
         Set<String> definedSymbols = new HashSet<>(getExternalSymbols());

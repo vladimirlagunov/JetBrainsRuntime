@@ -76,7 +76,7 @@ public class ResolveSymbolsTestMinEnv extends ResolveSymbolsTestBase {
         throw new RuntimeException("Unknown os.arch: " + arch);
     }
 
-    public List<String> getExternalSymbols() throws IOException {
+    protected List<String> getExternalSymbols() throws IOException {
         List<String> result = new ArrayList<>();
 
         String libsPath = Objects.requireNonNull(ResolveSymbolsTestMinEnv.class.getResource("externalLibs/" + getArch())).getPath();

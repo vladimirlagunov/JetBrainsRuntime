@@ -52,7 +52,7 @@ public class ResolveSymbolsRealEnv extends ResolveSymbolsTestBase {
      * 	The function returns a list with "/lib/x86_64-linux-gnu/libselinux.so.1", "/lib/x86_64-linux-gnu/libc.so.6",
      * 	"/lib/x86_64-linux-gnu/libpcre2-8.so.0" and "/lib64/ld-linux-x86-64.so.2"
      */
-    List<Path> getDependencies(Path path) throws IOException, InterruptedException {
+    private List<Path> getDependencies(Path path) throws IOException, InterruptedException {
         Process process = Runtime.getRuntime().exec("ldd " + path);
 
         List<Path> result = new BufferedReader(new InputStreamReader(process.getInputStream()))
@@ -80,7 +80,7 @@ public class ResolveSymbolsRealEnv extends ResolveSymbolsTestBase {
         return result;
     }
 
-    public List<String> getExternalSymbols() throws IOException {
+    protected List<String> getExternalSymbols() throws IOException {
         return getJbrBinaries().stream()
                 .flatMap(path -> {
                     try {
