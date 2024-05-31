@@ -71,6 +71,7 @@ struct wl_seat     *wl_seat = NULL;
 
 struct wl_keyboard *wl_keyboard;
 struct wl_pointer  *wl_pointer;
+struct zwp_relative_pointer_v1 *relative_pointer;
 
 #define MAX_CURSOR_SCALE 100
 struct wl_cursor_theme *cursor_themes[MAX_CURSOR_SCALE] = {NULL};
@@ -188,6 +189,9 @@ wl_pointer_leave(void *data, struct wl_pointer *wl_pointer,
     pointer_event.surface         = surface;
 }
 
+static int last_x;
+static int last_y;
+
 static void
 wl_pointer_motion(void *data, struct wl_pointer *wl_pointer, uint32_t time,
                   wl_fixed_t surface_x, wl_fixed_t surface_y)
@@ -196,6 +200,9 @@ wl_pointer_motion(void *data, struct wl_pointer *wl_pointer, uint32_t time,
     pointer_event.time             = time;
     pointer_event.surface_x        = surface_x,
     pointer_event.surface_y        = surface_y;
+    printf("!! pointer %d, %d\n", wl_fixed_to_int(surface_x) - last_x, wl_fixed_to_int(surface_y) - last_y);
+    last_x = wl_fixed_to_int(surface_x);
+    last_y = wl_fixed_to_int(surface_y);
 }
 
 static void
@@ -431,6 +438,26 @@ static const struct wl_keyboard_listener wl_keyboard_listener = {
 };
 
 static void
+relative_motion(void *data,
+                struct zwp_relative_pointer_v1 *zwp_relative_pointer_v1,
+                uint32_t utime_hi,
+                uint32_t utime_lo,
+                wl_fixed_t dx,
+                wl_fixed_t dy,
+                wl_fixed_t dx_unaccel,
+                wl_fixed_t dy_unaccel)
+{
+    printf("!!!!!!!!!! Relative motion x %d, y %d\n", wl_fixed_to_int(dx),
+           wl_fixed_to_int(dy));
+}
+
+static const struct zwp_relative_pointer_v1_listener relative_pointer_listener = {
+        .relative_motion = relative_motion
+};
+
+struct zwp_relative_pointer_manager_v1* relative_pointer_manager;
+
+static void
 wl_seat_capabilities(void *data, struct wl_seat *wl_seat, uint32_t capabilities)
 {
     const bool has_pointer  = capabilities & WL_SEAT_CAPABILITY_POINTER;
@@ -439,6 +466,12 @@ wl_seat_capabilities(void *data, struct wl_seat *wl_seat, uint32_t capabilities)
     if (has_pointer && wl_pointer == NULL) {
         wl_pointer = wl_seat_get_pointer(wl_seat);
         wl_pointer_add_listener(wl_pointer, &wl_pointer_listener, NULL);
+        if (relative_pointer_manager != NULL) {
+            relative_pointer = zwp_relative_pointer_manager_v1_get_relative_pointer(
+                    relative_pointer_manager, wl_pointer);
+            zwp_relative_pointer_v1_add_listener(relative_pointer, &relative_pointer_listener, NULL);
+        }
+
     } else if (!has_pointer && wl_pointer != NULL) {
         wl_pointer_release(wl_pointer);
         wl_pointer = NULL;
@@ -527,6 +560,8 @@ registry_global(void *data, struct wl_registry *wl_registry,
         zwp_selection_dm = wl_registry_bind(wl_registry, name, &zwp_primary_selection_device_manager_v1_interface, 1);
     } else if (strcmp(interface, wp_viewporter_interface.name) == 0) {
         wp_viewporter = wl_registry_bind(wl_registry, name, &wp_viewporter_interface, 1);
+    } else if (strcmp(interface, zwp_relative_pointer_manager_v1_interface.name) == 0) {
+        relative_pointer_manager = wl_registry_bind(wl_registry, name, &zwp_relative_pointer_manager_v1_interface, 1);
     }
 
 #ifdef WAKEFIELD_ROBOT
