@@ -25,11 +25,15 @@
 
 package java.io;
 
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+
 import jdk.internal.access.SharedSecrets;
 import jdk.internal.access.JavaIOFileDescriptorAccess;
 import jdk.internal.misc.Blocker;
+import jdk.internal.misc.VM;
 import sun.nio.ch.FileChannelImpl;
+import sun.security.action.GetPropertyAction;
 
 
 /**
@@ -68,6 +72,8 @@ public class FileOutputStream extends OutputStream
      */
     private static final JavaIOFileDescriptorAccess FD_ACCESS =
         SharedSecrets.getJavaIOFileDescriptorAccess();
+
+    private static final boolean useNIO = GetPropertyAction.privilegedGetBooleanProp("jbr.java.io.use.nio", true, null);
 
     /**
      * The system dependent file descriptor.
@@ -313,9 +319,21 @@ public class FileOutputStream extends OutputStream
         boolean append = FD_ACCESS.getAppend(fd);
         long comp = Blocker.begin();
         try {
-            write(b, append);
+            implWrite(b, append);
         } finally {
             Blocker.end(comp);
+        }
+    }
+
+    private void implWrite(int b, boolean append) throws IOException {
+        if (!VM.isBooted() || !useNIO) {
+            write(b, append);
+        } else {
+            // 'append' is ignored; the channel is supposed to obey the mode in which the file was opened
+            byte[] array = new byte[1];
+            array[0] = (byte) b;
+            ByteBuffer buffer = ByteBuffer.wrap(array);
+            getChannel().write(buffer);
         }
     }
 
@@ -343,7 +361,7 @@ public class FileOutputStream extends OutputStream
         boolean append = FD_ACCESS.getAppend(fd);
         long comp = Blocker.begin();
         try {
-            writeBytes(b, 0, b.length, append);
+            implWriteBytes(b, 0, b.length, append);
         } finally {
             Blocker.end(comp);
         }
@@ -364,9 +382,24 @@ public class FileOutputStream extends OutputStream
         boolean append = FD_ACCESS.getAppend(fd);
         long comp = Blocker.begin();
         try {
-            writeBytes(b, off, len, append);
+            implWriteBytes(b, off, len, append);
         } finally {
             Blocker.end(comp);
+        }
+    }
+
+    private void implWriteBytes(byte[] b, int off, int len, boolean append) throws IOException {
+        if (!VM.isBooted() || !useNIO) {
+            writeBytes(b, off, len, append);
+        } else {
+            // 'append' is ignored; the channel is supposed to obey the mode in which the file was opened
+            try {
+                ByteBuffer buffer = ByteBuffer.wrap(b, off, len);
+                getChannel().write(buffer);
+            } catch (OutOfMemoryError e) {
+                // May fail to allocate direct buffer memory due to small -XX:MaxDirectMemorySize
+                writeBytes(b, off, len, append);
+            }
         }
     }
 
