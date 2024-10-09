@@ -27,6 +27,11 @@ package java.io;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.Set;
 
 import jdk.internal.access.SharedSecrets;
 import jdk.internal.access.JavaIOFileDescriptorAccess;
@@ -229,12 +234,36 @@ public class FileOutputStream extends OutputStream
         if (file.isInvalid()) {
             throw new FileNotFoundException("Invalid file path");
         }
-        this.fd = new FileDescriptor();
-        fd.attach(this);
-        this.path = name;
 
-        open(name, append);
-        FileCleanable.register(fd);   // open sets the fd, register the cleanup
+        this.path = name;
+        if (VM.isBooted() && useNIO) {
+            if (Files.isDirectory(Path.of(name))) {
+                throw new FileNotFoundException(name + " is a directory");
+            }
+            try {
+                // NB: the channel will be closed in the close() method
+                var ch = FileSystems.getDefault().provider().newByteChannel(
+                        file.toPath(),
+                        append ? Set.of(StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
+                               : Set.of(StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING));
+                if (ch instanceof FileChannelImpl fci) {
+                    channel = fci;
+                    fd = fci.getFD(); // TODO: this is a temporary workaround
+                    fd.attach(this);
+                    FileCleanable.register(fd);
+                } else {
+                    throw new InternalError("FileSystem does not support FileChannelImpl");
+                }
+            } catch (IOException e) {
+                // Since we can't throw IOException...
+                throw new FileNotFoundException(e.getMessage());
+            }
+        } else {
+            this.fd = new FileDescriptor();
+            fd.attach(this);
+            open(name, append);
+            FileCleanable.register(fd);   // open sets the fd, register the cleanup
+        }
     }
 
     /**

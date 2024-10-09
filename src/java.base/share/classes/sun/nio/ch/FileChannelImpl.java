@@ -1561,4 +1561,8 @@ public class FileChannelImpl
         assert fileLockTable != null;
         fileLockTable.remove(fli);
     }
+
+    public FileDescriptor getFD() {
+        return fd;
+    }
 }

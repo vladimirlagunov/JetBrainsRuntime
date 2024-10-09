@@ -27,7 +27,13 @@ package java.io;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.Set;
+
 import jdk.internal.misc.Blocker;
 
 import jdk.internal.misc.VM;
@@ -152,11 +158,35 @@ public class FileInputStream extends InputStream
         if (file.isInvalid()) {
             throw new FileNotFoundException("Invalid file path");
         }
-        fd = new FileDescriptor();
-        fd.attach(this);
+
         path = name;
-        open(name);
-        FileCleanable.register(fd);       // open set the fd, register the cleanup
+        if (VM.isBooted() && useNIO) {
+            if (Files.isDirectory(Path.of(name))) {
+                throw new FileNotFoundException(name + " is a directory");
+            }
+            try {
+                // NB: the channel will be closed in the close() method
+                var ch = FileSystems.getDefault().provider().newByteChannel(
+                        file.toPath(),
+                        Set.of(StandardOpenOption.READ));
+                if (ch instanceof FileChannelImpl fci) {
+                    channel = fci;
+                    fd = fci.getFD(); // TODO: this is a temporary workaround
+                    fd.attach(this);
+                    FileCleanable.register(fd);
+                } else {
+                    throw new InternalError("FileSystem does not support FileChannelImpl");
+                }
+            } catch (IOException e) {
+                // Since we can't throw IOException...
+                throw new FileNotFoundException(e.getMessage());
+            }
+        } else {
+            fd = new FileDescriptor();
+            fd.attach(this);
+            open(name);
+            FileCleanable.register(fd);       // open set the fd, register the cleanup
+        }
     }
 
     /**

@@ -27,6 +27,11 @@ package java.io;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.HashSet;
 
 import jdk.internal.access.JavaIORandomAccessFileAccess;
 import jdk.internal.access.SharedSecrets;
@@ -272,11 +277,46 @@ public class RandomAccessFile implements DataOutput, DataInput, Closeable {
         if (file.isInvalid()) {
             throw new FileNotFoundException("Invalid file path");
         }
-        fd = new FileDescriptor();
-        fd.attach(this);
         path = name;
-        open(name, imode);
-        FileCleanable.register(fd);   // open sets the fd, register the cleanup
+        if (VM.isBooted() && useNIO) {
+            if (Files.isDirectory(Path.of(name))) {
+                throw new FileNotFoundException(name + " is a directory");
+            }
+            try {
+                var options = optionsForChannel(imode);
+                // NB: the channel will be closed in the close() method
+                var ch = FileSystems.getDefault().provider().newByteChannel(file.toPath(), options);
+                if (ch instanceof FileChannelImpl fci) {
+                    channel = fci;
+                    fd = fci.getFD(); // TODO: this is a temporary workaround
+                    fd.attach(this);
+                    FileCleanable.register(fd);
+                } else {
+                    throw new InternalError("FileSystem does not support FileChannelImpl");
+                }
+            } catch (IOException e) {
+                // Since we can't throw IOException...
+                throw new FileNotFoundException(e.getMessage());
+            }
+         } else {
+            fd = new FileDescriptor();
+            fd.attach(this);
+            open(name, imode);
+            FileCleanable.register(fd);   // open sets the fd, register the cleanup
+        }
+    }
+
+    private static HashSet<StandardOpenOption> optionsForChannel(int imode) {
+        HashSet<StandardOpenOption> options = new HashSet<>(6);
+        options.add(StandardOpenOption.READ);
+        if ((imode & O_RDONLY) == 0) {
+            options.add(StandardOpenOption.WRITE);
+            options.add(StandardOpenOption.CREATE);
+        }
+        if ((imode & O_SYNC) == O_SYNC) options.add(StandardOpenOption.SYNC);
+        if ((imode & O_DSYNC) == O_DSYNC) options.add(StandardOpenOption.DSYNC);
+        if ((imode & O_TEMPORARY) == O_TEMPORARY) options.add(StandardOpenOption.DELETE_ON_CLOSE);
+        return options;
     }
 
     /**
