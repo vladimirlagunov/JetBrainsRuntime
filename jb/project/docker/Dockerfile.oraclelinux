@@ -24,11 +24,9 @@ RUN yum -y update && \
         flex-2.6.1-9.el8 \
         fontconfig-devel-2.13.1-4.el8 \
         freetype-devel-2.9.1-9.el8 \
-        gcc-c++-8.5.0-22.0.1.el8_10 \
         git-2.43.5-1.el8_10 \
         git-core-2.43.5-1.el8_10 \
         libtool-2.4.6-25.el8 \
-        libstdc++-static-8.5.0-22.0.1.el8_10 \
         libXcomposite-0.4.4-14.el8 \
         libXdamage-1.1.4-14.el8 \
         libXi-devel-1.7.10-1.el8 \
@@ -52,6 +50,8 @@ RUN yum -y update && \
         vulkan-loader-devel-1.3.250.1-1.el8 \
         vulkan-validation-layers-1.3.250.1-1.el8 && \
     yum -y clean all
+
+RUN echo "source /opt/rh/gcc-toolset-10/enable" >> /etc/bashrc
 
 COPY gtk-shell.xml /gtk-shell.xml
 
