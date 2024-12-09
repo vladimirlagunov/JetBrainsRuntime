@@ -1177,7 +1177,8 @@ public class CPlatformWindow extends CFRetainedResource implements PlatformWindo
     }
 
     private final static boolean INVOKE_LATER_FLUSH_BUFFERS
-            = Boolean.getBoolean(System.getProperty("awt.mac.flushBuffers.invokeLater", "false"));
+            = Boolean.parseBoolean(AccessController.doPrivileged(
+                new GetPropertyAction("awt.mac.flushBuffers.invokeLater", "false")));
 
     void flushBuffers() {
         // 24.11: only 1 usage by deliverMoveResizeEvent():
