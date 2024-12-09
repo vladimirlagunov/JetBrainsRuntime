@@ -1176,6 +1176,7 @@ public class CPlatformWindow extends CFRetainedResource implements PlatformWindo
         return contentView.getWindowLayerPtr();
     }
 
+    @SuppressWarnings("removal")
     private final static boolean INVOKE_LATER_FLUSH_BUFFERS
             = Boolean.parseBoolean(AccessController.doPrivileged(
                 new GetPropertyAction("awt.mac.flushBuffers.invokeLater", "false")));
