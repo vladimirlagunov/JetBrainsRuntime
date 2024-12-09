@@ -104,6 +104,7 @@ public class WLComponentPeer implements ComponentPeer {
     int displayScale; // protected by dataLock
     double effectiveScale; // protected by dataLock
     private final WLSize wlSize = new WLSize();
+    private boolean newSizeRequested = true;
     boolean repositionPopup = false; // protected by dataLock
 
     static {
@@ -304,6 +305,8 @@ public class WLComponentPeer implements ComponentPeer {
             int thisWidth = javaUnitsToSurfaceUnits(getWidth());
             int thisHeight = javaUnitsToSurfaceUnits(getHeight());
             boolean isModal = targetIsModal();
+
+            if (isWlPopup) System.err.printf("wlSetVisible, size %dx%d\n", thisWidth, thisHeight);
 
             int state = (target instanceof Frame frame)
                     ? frame.getExtendedState()
@@ -559,14 +562,13 @@ public class WLComponentPeer implements ComponentPeer {
     }
 
     private void setSizeTo(int newWidth, int newHeight) {
-        if (isSizeBeingConfigured() && wlSize.hasPixelSizeSet()) {
-            // Must be careful not to override the size of the Wayland surface because
-            // some implementations (Weston) react badly when the size of the surface
-            // mismatches the configured size. We can't always precisely derive the surface
-            // size from the Java (client) size because of scaling rounding errors.
-            wlSize.setJavaSize(newWidth, newHeight);
-        } else {
+        System.err.printf("setSizeTo %dx%d\n", newWidth, newHeight);
+        if (!isSizeBeingConfigured()) {
             wlSize.deriveFromJavaSize(newWidth, newHeight);
+            System.err.printf("\t... deriving from the Java size -> (%s)\n", wlSize);
+            newSizeRequested = true;
+        } else {
+            System.err.printf("\t...ignored (%s)\n", wlSize);
         }
     }
 
@@ -1476,7 +1478,7 @@ public class WLComponentPeer implements ComponentPeer {
         return new Dimension(javaUnitsToSurfaceUnits(d.width), javaUnitsToSurfaceUnits(d.height));
     }
 
-    void notifyConfigured(int newSurfaceX, int newSurfaceY, int newSurfaceWidth, int newSurfaceHeight, boolean active, boolean maximized) {
+    boolean notifyConfigured(int newSurfaceX, int newSurfaceY, int newSurfaceWidth, int newSurfaceHeight, boolean active, boolean maximized) {
         // NB: The width and height, as well as X and Y arguments, specify the size and the location
         //     of the window in surface-local coordinates.
         if (log.isLoggable(PlatformLogger.Level.FINE)) {
@@ -1498,9 +1500,18 @@ public class WLComponentPeer implements ComponentPeer {
             resetTargetLocationTo(locationRelativeToParent.x, locationRelativeToParent.y);
         }
 
+        if (maximized) newSizeRequested = false;
+
+        boolean acknowledgeNewSize = maximized || !newSizeRequested;// || (wlSize.surfaceSize.width == newSurfaceWidth && wlSize.surfaceSize.height == newSurfaceHeight);
+        if (acknowledgeNewSize) {
+            wlSize.deriveFromSurfaceSize(newSurfaceWidth, newSurfaceHeight);
+            newSizeRequested = false;
+        }
+
         // From xdg-shell.xml: "If the width or height arguments are zero,
         // it means the client should decide its own window dimension".
         boolean clientDecidesDimension = newSurfaceWidth == 0 || newSurfaceHeight == 0;
+        acknowledgeNewSize |= clientDecidesDimension;
         if (!clientDecidesDimension) {
             changeSizeToConfigured(newSurfaceWidth, newSurfaceHeight, maximized);
         }
@@ -1522,10 +1533,13 @@ public class WLComponentPeer implements ComponentPeer {
             // the size change from target.setSize() above.
             postPaintEvent();
         }
+
+        return acknowledgeNewSize;
     }
 
     private void changeSizeToConfigured(int newSurfaceWidth, int newSurfaceHeight, boolean honorSurfaceSize) {
-        wlSize.deriveFromSurfaceSize(newSurfaceWidth, newSurfaceHeight);
+        System.err.printf("changeSizeToConfigured -> %dx%d (maximized=%s)\n", newSurfaceWidth, newSurfaceHeight, honorSurfaceSize);
+        //requestedSize.deriveFromSurfaceSize(newSurfaceWidth, newSurfaceHeight);
         int newWidth = wlSize.getJavaWidth();
         int newHeight = wlSize.getJavaHeight();
         try {
@@ -1533,7 +1547,7 @@ public class WLComponentPeer implements ComponentPeer {
             // the size set by the user. The former originates from the surface size in surface-local coordinates,
             // while the latter is set in the client (Java) units. These are not always precisely convertible
             // when the scale differs from 100%.
-            setSizeIsBeingConfigured(honorSurfaceSize);
+            setSizeIsBeingConfigured(true);
             performUnlocked(() -> target.setSize(newWidth, newHeight));
         } finally {
             setSizeIsBeingConfigured(false);

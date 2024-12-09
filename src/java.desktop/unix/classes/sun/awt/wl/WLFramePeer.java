@@ -154,28 +154,32 @@ public class WLFramePeer extends WLDecoratedPeer implements FramePeer {
     }
 
     @Override
-    void notifyConfigured(int newSurfaceX, int newSurfaceY, int newSurfaceWidth, int newSurfaceHeight, boolean active, boolean maximized) {
+    boolean notifyConfigured(int newSurfaceX, int newSurfaceY, int newSurfaceWidth, int newSurfaceHeight, boolean active, boolean maximized) {
         int widthBefore = getWidth();
         int heightBefore = getHeight();
 
-        super.notifyConfigured(newSurfaceX, newSurfaceY, newSurfaceWidth, newSurfaceHeight, active, maximized);
+        boolean acknowledge = super.notifyConfigured(newSurfaceX, newSurfaceY, newSurfaceWidth, newSurfaceHeight, active, maximized);
 
-        synchronized (getStateLock()) {
-            int oldState = state;
-            state = maximized ? Frame.MAXIMIZED_BOTH : Frame.NORMAL;
-            AWTAccessor.getFrameAccessor().setExtendedState(getFrame(), state);
-            if (state != oldState) {
-                boolean clientDecidesDimension = newSurfaceWidth == 0 || newSurfaceHeight == 0;
-                if (maximized) {
-                    widthBeforeMaximized = widthBefore;
-                    heightBeforeMaximized = heightBefore;
-                } else if (clientDecidesDimension && widthBeforeMaximized > 0 && heightBeforeMaximized > 0) {
-                    performUnlocked(() -> target.setSize(widthBeforeMaximized, heightBeforeMaximized));
+        if (acknowledge) {
+            synchronized (getStateLock()) {
+                int oldState = state;
+                state = maximized ? Frame.MAXIMIZED_BOTH : Frame.NORMAL;
+                AWTAccessor.getFrameAccessor().setExtendedState(getFrame(), state);
+                if (state != oldState) {
+                    boolean clientDecidesDimension = newSurfaceWidth == 0 || newSurfaceHeight == 0;
+                    if (maximized) {
+                        widthBeforeMaximized = widthBefore;
+                        heightBeforeMaximized = heightBefore;
+                    } else if (clientDecidesDimension && widthBeforeMaximized > 0 && heightBeforeMaximized > 0) {
+                        performUnlocked(() -> target.setSize(widthBeforeMaximized, heightBeforeMaximized));
+                    }
+                    WLToolkit.postEvent(new WindowEvent(getFrame(), WindowEvent.WINDOW_STATE_CHANGED, oldState, state));
+                    notifyClientDecorationsChanged();
                 }
-                WLToolkit.postEvent(new WindowEvent(getFrame(), WindowEvent.WINDOW_STATE_CHANGED, oldState, state));
-                notifyClientDecorationsChanged();
             }
         }
+
+        return acknowledge;
     }
 
     private Frame getFrame() {

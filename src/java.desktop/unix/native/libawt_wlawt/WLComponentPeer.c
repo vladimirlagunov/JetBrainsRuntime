@@ -119,8 +119,6 @@ xdg_surface_configure(void *data,
                       struct xdg_surface *xdg_surface,
                       uint32_t serial)
 {
-    xdg_surface_ack_configure(xdg_surface, serial);
-
     struct WLFrame *wlFrame = (struct WLFrame*)data;
     assert(wlFrame);
 
@@ -130,12 +128,15 @@ xdg_surface_configure(void *data,
         JNIEnv *env = getEnv();
         const jobject nativeFramePeer = (*env)->NewLocalRef(env, wlFrame->nativeFramePeer);
         if (nativeFramePeer) {
-            (*env)->CallVoidMethod(env, nativeFramePeer, notifyConfiguredMID,
-                                   wlFrame->configuredX, wlFrame->configuredY,
-                                   wlFrame->configuredWidth, wlFrame->configuredHeight,
-                                   wlFrame->configuredActive, wlFrame->configuredMaximized);
+            jboolean acknowledge = (*env)->CallBooleanMethod(env, nativeFramePeer, notifyConfiguredMID,
+                                                             wlFrame->configuredX, wlFrame->configuredY,
+                                                             wlFrame->configuredWidth, wlFrame->configuredHeight,
+                                                             wlFrame->configuredActive, wlFrame->configuredMaximized);
             (*env)->DeleteLocalRef(env, nativeFramePeer);
             JNU_CHECK_EXCEPTION(env);
+            if (acknowledge) {
+                xdg_surface_ack_configure(xdg_surface, serial);
+            }
         }
     }
 }
@@ -317,7 +318,7 @@ Java_sun_awt_wl_WLComponentPeer_initIDs
         (JNIEnv *env, jclass clazz)
 {
     CHECK_NULL_THROW_IE(env,
-                        notifyConfiguredMID = (*env)->GetMethodID(env, clazz, "notifyConfigured", "(IIIIZZ)V"),
+                        notifyConfiguredMID = (*env)->GetMethodID(env, clazz, "notifyConfigured", "(IIIIZZ)Z"),
                         "Failed to find method WLComponentPeer.notifyConfigured");
     CHECK_NULL_THROW_IE(env,
                         notifyEnteredOutputMID = (*env)->GetMethodID(env, clazz, "notifyEnteredOutput", "(I)V"),
