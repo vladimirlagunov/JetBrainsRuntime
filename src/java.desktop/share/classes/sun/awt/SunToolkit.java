@@ -777,9 +777,6 @@ public abstract class SunToolkit extends Toolkit
 
         if (awtLockListeners != null) {
             final long elapsed = System.nanoTime() - start;
-            if (false) {
-                System.err.println("awtLocked: lock held by thread: '" + getThreadInfo(AWT_LOCK.getPrivateOwnerThread()));
-            }
             awtLockListeners.forEach(l -> l.afterAwtLocked(elapsed));
         }
     }

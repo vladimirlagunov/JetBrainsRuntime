@@ -387,12 +387,6 @@ BOOL MTLLayer_isExtraRedrawEnabled() {
 - (void) display {
     AWT_ASSERT_APPKIT_THREAD;
     J2dTraceLn(J2D_TRACE_VERBOSE, "MTLLayer_display() called");
-
-    if (0) {
-        NSString *callStack = [ThreadUtilities getCallerStack:nil];
-        NSLog(@"display: %@", callStack);
-    }
-
     [self blitCallback];
     [super display];
 }
